@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import subprocess
 import threading
@@ -33,6 +34,13 @@ app.add_middleware(
 
 with open(BASE_DIR / "config.yaml", "r") as f:
     cfg = yaml.safe_load(f)
+
+if os.environ.get("OLLAMA_ENDPOINT"):
+    cfg["system"]["ollama_endpoint"] = os.environ["OLLAMA_ENDPOINT"]
+if os.environ.get("LLM_MODEL"):
+    cfg["system"]["llm_model"] = os.environ["LLM_MODEL"]
+if os.environ.get("EMBEDDING_MODEL"):
+    cfg["system"]["embedding_model"] = os.environ["EMBEDDING_MODEL"]
 
 extractor = FactExtractor(endpoint=cfg["system"]["ollama_endpoint"], model=cfg["system"]["llm_model"])
 scorer = ImportanceScorer(weights=cfg["scoring_weights"])

@@ -1,0 +1,45 @@
+services:
+  app:
+    build: .
+    container_name: adaptive-memory-app
+    ports:
+      - "9000:9000"
+    environment:
+      - OLLAMA_ENDPOINT=http://ollama:11434
+      - LLM_MODEL=llama3.1:8b
+      - EMBEDDING_MODEL=nomic-embed-text
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: adaptive-memory-ollama
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: adaptive-memory-ollama-pull
+    volumes:
+      - ollama-models:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama pull llama3.1:8b
+        ollama pull nomic-embed-text
+
+volumes:
+  ollama-models:
