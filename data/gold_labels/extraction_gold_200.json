@@ -1,0 +1,34 @@
+[
+  {
+    "turn_id": 1,
+    "user_turn": "I'm setting up a new production cluster with PostgreSQL 15 on Ubuntu 22.04.",
+    "expected_facts": [
+      {
+        "fact": "User is setting up a production database using PostgreSQL 15",
+        "category": "technical_preference",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Target operating system is Ubuntu 22.04",
+        "category": "technical_preference",
+        "confidence": 0.90
+      }
+    ]
+  },
+  {
+    "turn_id": 2,
+    "user_turn": "Let's pause the DB work for a second, my cat Whiskers is stepping on the keyboard.",
+    "expected_facts": [
+      {
+        "fact": "User has a cat named Whiskers",
+        "category": "personal",
+        "confidence": 0.85
+      },
+      {
+        "fact": "Cat interrupted work",
+        "category": "transient",
+        "confidence": 0.60
+      }
+    ]
+  }
+]

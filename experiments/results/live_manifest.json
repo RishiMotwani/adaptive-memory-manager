@@ -1,0 +1,174 @@
+{
+  "model_under_test": "llama3.1:8b",
+  "max_context_tokens": 4096,
+  "metric_source": "live model prompt_eval_count (content tokens), same measurement method on both sides",
+  "E1_token_efficiency": {
+    "proposed_mean_tokens": 70.84210526315789,
+    "baseline_mean_tokens": 496.2105263157895,
+    "n": 19,
+    "metric_source": "live model prompt_eval_count (content tokens, measured live)",
+    "baseline_measured_live": true,
+    "p_value": 3.814697265625e-06,
+    "significant": true,
+    "per_turn": [
+      {
+        "turn": 2,
+        "proposed": 39,
+        "baseline": 96
+      },
+      {
+        "turn": 3,
+        "proposed": 60,
+        "baseline": 148
+      },
+      {
+        "turn": 4,
+        "proposed": 72,
+        "baseline": 191
+      },
+      {
+        "turn": 5,
+        "proposed": 63,
+        "baseline": 234
+      },
+      {
+        "turn": 6,
+        "proposed": 63,
+        "baseline": 277
+      },
+      {
+        "turn": 7,
+        "proposed": 63,
+        "baseline": 320
+      },
+      {
+        "turn": 8,
+        "proposed": 63,
+        "baseline": 363
+      },
+      {
+        "turn": 9,
+        "proposed": 63,
+        "baseline": 406
+      },
+      {
+        "turn": 10,
+        "proposed": 63,
+        "baseline": 453
+      },
+      {
+        "turn": 11,
+        "proposed": 78,
+        "baseline": 496
+      },
+      {
+        "turn": 12,
+        "proposed": 74,
+        "baseline": 539
+      },
+      {
+        "turn": 13,
+        "proposed": 81,
+        "baseline": 582
+      },
+      {
+        "turn": 14,
+        "proposed": 76,
+        "baseline": 625
+      },
+      {
+        "turn": 15,
+        "proposed": 76,
+        "baseline": 668
+      },
+      {
+        "turn": 16,
+        "proposed": 76,
+        "baseline": 711
+      },
+      {
+        "turn": 17,
+        "proposed": 76,
+        "baseline": 754
+      },
+      {
+        "turn": 18,
+        "proposed": 76,
+        "baseline": 808
+      },
+      {
+        "turn": 19,
+        "proposed": 101,
+        "baseline": 857
+      },
+      {
+        "turn": 20,
+        "proposed": 83,
+        "baseline": 900
+      }
+    ]
+  },
+  "E2_memory_accuracy": {
+    "proposed_positive_recall": 1.0,
+    "baseline_positive_recall": 0.2,
+    "baseline_recall_real": true,
+    "proposed_forgetting_precision": 0.0,
+    "baseline_forgetting_precision": 0.0
+  },
+  "E3_latency": {
+    "extraction_ms": 513.32,
+    "scoring_ms": 0.05,
+    "fact_token_measurement_ms": 13.74,
+    "compression_ms": 0.01,
+    "decay_ms": 0.01,
+    "retrieval_ms": 0.03,
+    "window_replay_ms": 1139.9,
+    "answer_ms": 227.66
+  },
+  "E4_needle_in_haystack": {
+    "distances": [
+      10
+    ],
+    "proposed_accuracy": [
+      1.0
+    ],
+    "baseline_accuracy": [
+      0.0
+    ],
+    "baseline_real": true
+  },
+  "E5_ablations": {
+    "full_system": {
+      "ablation": "full_system",
+      "accuracy": 1.0,
+      "token_overhead_vs_full": 1.0,
+      "pruned_count": 0
+    },
+    "no_decay": {
+      "ablation": "no_decay",
+      "accuracy": 1.0,
+      "token_overhead_vs_full": 1.0,
+      "pruned_count": 0
+    },
+    "no_compression": {
+      "ablation": "no_compression",
+      "accuracy": 1.0,
+      "token_overhead_vs_full": 1.1,
+      "pruned_count": 0
+    },
+    "equal_weight_scoring": {
+      "ablation": "equal_weight_scoring",
+      "accuracy": 1.0,
+      "token_overhead_vs_full": 1.0,
+      "pruned_count": 0
+    },
+    "token_source": "measured (live model prompt_eval_count / per-fact measured tokens)"
+  },
+  "E6_power_check": {
+    "observed_cohens_d": 2.487,
+    "required_n_per_group": 4,
+    "alpha": 0.05,
+    "target_power": 0.8,
+    "n_actual": 19
+  }
+}

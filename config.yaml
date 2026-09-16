@@ -1,0 +1,30 @@
+system:
+  seed: 42
+  ollama_endpoint: http://localhost:11434
+  llm_model: llama3.1:8b
+  embedding_model: nomic-embed-text
+  max_context_tokens: 4096
+  injection_token_limit: 0
+decay_lambdas:
+  transient: 0.15
+  personal: 0.005
+  technical_preference: 0.02
+  project_context: 0.01
+scoring_weights:
+  w1_relevance: 0.4
+  w2_utility: 0.3
+  w3_recency: 0.15
+  w4_frequency: 0.15
+pruning:
+  threshold: 0.2
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.35
+compression:
+  enabled: true
+vram:
+  bytes_per_token_estimate:
+    llama: 131072
+    qwen2: 57344
+    gemma4: 98304
+    default: 100000

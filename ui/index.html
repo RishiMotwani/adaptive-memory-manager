@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Adaptive Memory Manager Dashboard</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #0f172a; color: #f8fafc; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 24px; border-bottom: 1px solid #334155; background: #0b1120; position: sticky; top: 0; z-index: 10; }
+        .topbar h1 { font-size: 1.05rem; margin: 0; }
+        .topbar .group { display: flex; align-items: center; gap: 8px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; min-height: 40vh; }
+        .panel { padding: 20px 24px; overflow-y: auto; border-right: 1px solid #334155; }
+        .panel h2 { margin-top: 4px; }
+        .card { background: #1e293b; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; border: 1px solid #334155; }
+        .card.highlight { border-color: #16a34a; box-shadow: 0 0 0 1px #16a34a; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .transient { background: #7f1d1d; color: #fca5a5; }
+        .personal { background: #14532d; color: #86efac; }
+        .technical_preference { background: #1e3a8a; color: #bfdbfe; }
+        .project_context { background: #701a75; color: #f5d0fe; }
+        input[type="text"], input[type="number"], select { padding: 8px 10px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 0.85rem; }
+        input[type="text"] { flex: 1; }
+        button { padding: 8px 14px; border-radius: 6px; background: #2563eb; color: white; border: none; cursor: pointer; font-size: 0.82rem; }
+        button.secondary { background: #475569; }
+        button.primary { background: #16a34a; }
+        button:hover { filter: brightness(1.15); }
+        .pruned { color: #f87171; }
+        .vram-chip { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 0.78rem; color: #94a3b8; white-space: nowrap; }
+        .vram-chip b { color: #f8fafc; }
+
+        .compare { padding: 20px 24px; border-top: 1px solid #334155; background: #0b1120; }
+        .stats-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+        .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+        .mem-list { max-height: 240px; overflow-y: auto; padding-right: 4px; }
+        .mem-item { font-size: 0.8rem; padding: 4px 0; border-bottom: 1px solid #1e293b; }
+        .bar-wrap { background: #1e293b; border-radius: 6px; height: 18px; margin: 8px 0; overflow: hidden; border: 1px solid #334155; }
+        .bar { height: 100%; transition: width 0.6s ease; }
+        .bar.red { background: linear-gradient(90deg, #dc2626, #ef4444); }
+        .bar.green { background: linear-gradient(90deg, #16a34a, #4ade80); }
+        .note { font-size: 0.8rem; color: #94a3b8; margin-top: 6px; }
+        .note .kept { color: #4ade80; }
+        .legend { display: flex; gap: 20px; margin-top: 8px; font-size: 0.8rem; color: #94a3b8; flex-wrap: wrap; }
+        .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+        .sw.red { background: #ef4444; }
+        .sw.green { background: #4ade80; }
+        .tip { margin-top: 12px; color: #fcd34d; font-size: 0.85rem; }
+        svg text { fill: #94a3b8; font-size: 10px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 8px; }
+        th, td { border: 1px solid #334155; padding: 6px 10px; text-align: left; }
+        th { background: #1e293b; color: #cbd5e1; }
+        td { background: #0f172a; }
+        .good { color: #4ade80; }
+        .bad { color: #f87171; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .muted { color: #94a3b8; font-size: 0.8rem; }
+
+        #timeline { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+        .tl-entry { border-left: 3px solid #475569; padding: 6px 10px; margin: 6px 0; background: #111c33; border-radius: 0 6px 6px 0; font-size: 0.82rem; }
+        .tl-entry .turn { color: #38bdf8; font-weight: 600; }
+        .tl-entry .lost { color: #f87171; }
+        .tl-entry .saved { color: #4ade80; }
+
+        .subnav { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; background: #1e293b; border-bottom: 1px solid #334155; padding: 8px 24px; flex-wrap: wrap; }
+        .subnav a.sn { color: #cbd5e1; text-decoration: none; padding: 4px 12px; border-radius: 6px; border: 1px solid #334155; font-size: 0.85rem; }
+        .subnav a.sn:hover { background: #334155; }
+        .subnav a.sn.active { background: #0ea5e9; color: #0f172a; font-weight: 600; border-color: #0ea5e9; }
+        .seeall { color: #38bdf8; font-size: 0.8rem; text-decoration: none; margin-left: 10px; }
+        .seeall:hover { text-decoration: underline; }
+        .subview { padding: 20px 24px; }
+        .subview h2 { margin-top: 0; }
+        .bb-turn { display: flex; gap: 10px; padding: 6px 10px; margin: 4px 0; background: #111c33; border-radius: 6px; font-size: 0.82rem; align-items: baseline; }
+        .bb-turn.old { opacity: 0.75; }
+        .bb-turn .bb-idx { color: #475569; font-size: 0.7rem; min-width: 74px; }
+        .bb-ev { color: #f87171; }
+        .h2h-row td { vertical-align: top; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1>Adaptive Memory Manager — Live Demo</h1>
+        <div class="group">
+            <select id="model-select" title="Extraction model"></select>
+            <button class="secondary" onclick="loadModels()" title="Refresh model list">↻</button>
+        </div>
+        <div class="group">
+            <label class="muted" for="budget-input">Budget</label>
+            <input type="number" id="budget-input" value="4096" step="256" min="256" style="width:90px;">
+            <button class="secondary" onclick="applyBudget()">Apply</button>
+        </div>
+        <div class="group">
+            <div class="vram-chip" id="vram-chip">VRAM: —</div>
+        </div>
+        <div class="group">
+            <label class="muted" for="turns-preset">Turns</label>
+            <select id="turns-preset" style="width:66px;">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="150" selected>150</option>
+                <option value="250">250</option>
+                <option value="400">400</option>
+                <option value="500">500</option>
+            </select>
+            <input type="number" id="turns-input" value="150" min="20" max="500" style="width:66px;" title="Turn count up to 500">
+            <label class="muted">Density&nbsp;%</label>
+            <input type="number" id="density-input" value="20" min="0" max="100" step="1" style="width:56px;" title="% of turns that re-mention planted facts (0-100)">
+            <label class="muted">Planted</label>
+            <input type="number" id="planted-input" value="5" min="1" max="50" step="1" style="width:56px;" title="Number of distinct planted facts (1-50)">
+            <label class="muted" for="filler-select">Filler</label>
+            <select id="filler-select" title="Routine-turn length; longer = more baseline eviction pressure">
+                <option value="short">Short</option>
+                <option value="normal" selected>Normal</option>
+                <option value="long">Long</option>
+            </select>
+        </div>
+        <div class="group">
+            <button class="primary" onclick="runExperiments()">Run Experiments (E1–E6)</button>
+            <button class="primary" onclick="loadDemo()">Load Demo</button>
+            <button class="secondary" onclick="resetMemory()">Reset Memory</button>
+        </div>
+    </div>
+
+    <div id="demo-progress" hidden style="padding:10px 24px;background:#1e293b;border-bottom:1px solid #334155;">
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+            <span id="demo-progress-label">Extracting…</span>
+            <button class="secondary" onclick="cancelDemoJob()">Cancel Run</button>
+        </div>
+        <div class="bar-wrap" style="margin:6px 0 0;"><div class="bar green" id="demo-progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <div class="subnav">
+        <a href="#/" class="sn">Dashboard</a>
+        <a href="#/barebones" class="sn">Barebones Window</a>
+        <a href="#/memory" class="sn">Memory</a>
+        <a href="#/timeline" class="sn">Timeline</a>
+        <a href="#/experiments" class="sn">Experiments</a>
+    </div>
+
+    <div id="view-dashboard">
+    <div class="grid">
+        <div class="panel">
+            <h2>Live Conversation</h2>
+            <div id="chat-history"></div>
+            <div style="margin-top:20px;display:flex;gap:8px;">
+                <input type="text" id="user-input" placeholder='Try: "What is my cat\'s name?"'>
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        <div class="panel">
+            <h2>Adaptive Memory State</h2>
+            <h3>Active Memories (<span id="active-count">0</span>)</h3>
+            <div id="active-memories"></div>
+            <h3 class="pruned">Pruned / Forgotten (<span id="pruned-count">0</span>)</h3>
+            <div id="pruned-memories"></div>
+        </div>
+    </div>
+
+    <div class="compare">
+        <h2>Optimized vs Barebones — Live Comparison</h2>
+        <div class="stats-cards">
+            <div class="card">
+                <b>Barebones (raw transcript fed to model)</b>
+                <div class="bar-wrap"><div class="bar red" id="baseline-bar" style="width:0%"></div></div>
+                <span id="baseline-tokens">0 / 0 tokens in context</span>
+                <div id="baseline-evicted" class="note"></div>
+                <div class="note" id="planted-stats"></div>
+            </div>
+            <div class="card">
+                <b>Optimized (your memory system)</b>
+                <div class="bar-wrap"><div class="bar green" id="optimized-bar" style="width:0%"></div></div>
+                <span id="optimized-tokens">0 tokens in curated context</span>
+                <div class="note" id="optimized-mem"></div>
+                <div id="forgot-kept" class="note"></div>
+            </div>
+        </div>
+
+        <h3>Context Growth per Turn</h3>
+        <svg id="chart" viewBox="0 0 600 200" width="100%"></svg>
+        <div class="legend">
+            <span><span class="sw red"></span>Barebones raw transcript (clipped at token budget)</span>
+            <span><span class="sw green"></span>Optimized active-memory tokens (bounded)</span>
+        </div>
+        <p class="tip" id="tips"></p>
+    </div>
+
+    <div class="compare" id="barebones-panel" style="border-top:1px solid #334155;">
+        <h2>What the Barebones Model Actually Sees (Original Context Window) <a class="seeall" href="#/barebones">See all ▸</a></h2>
+        <div id="barebones-preview" class="note">Load the demo to inspect the raw-turn window and how many planted facts survive in the baseline's immediate context.</div>
+    </div>
+
+    <div class="compare" id="both-sides-panel">
+        <h2>Both Sides' Memory — Same Facts, Different Fate <a class="seeall" href="#/memory">See all ▸</a></h2>
+        <div id="both-sides" class="note">Load a demo, then see which planted facts each system still remembers vs has forgotten.</div>
+    </div>
+
+    <div class="compare" id="timeline-panel">
+        <h2>Per-Turn Memory Log <span class="muted">(updates live)</span> <a class="seeall" href="#/timeline">See all ▸</a></h2>
+        <div id="timeline"></div>
+    </div>
+
+    <div class="compare" id="experiments-panel">
+        <h2>Live Experiments — Proposed vs Barebones on the Same Test Case <a class="seeall" href="#/experiments">See all ▸</a></h2>
+        <p class="muted" id="exp-meta">Click "Run Experiments (E1–E6)" to evaluate both systems on the currently loaded scenario.</p>
+        <div id="experiments"></div>
+    </div>
+    </div>
+
+    <div id="view-barebones" class="subview" style="display:none;">
+        <h2>Barebones Original Context Window — All Turns</h2>
+        <p class="muted" id="bb-full-meta">Loading…</p>
+        <div id="bb-full"></div>
+        <div style="margin:12px 0;display:flex;gap:8px;">
+            <button class="secondary" onclick="BB.loadMoreEvicted()">Show more evicted turns (+200)</button>
+        </div>
+    </div>
+
+    <div id="view-memory" class="subview" style="display:none;">
+        <h2>Both Sides' Memory — Full Detail</h2>
+        <p class="muted" id="mem-full-meta">Loading…</p>
+        <div id="mem-full"></div>
+        <div style="margin:12px 0;display:flex;gap:8px;">
+            <button class="secondary" onclick="MEM.loadMore()">Load more (+100)</button>
+        </div>
+    </div>
+
+    <div id="view-timeline" class="subview" style="display:none;">
+        <h2>Per-Turn Memory Log — Full History</h2>
+        <div style="margin:10px 0;display:flex;gap:8px;align-items:center;">
+            <button class="secondary" onclick="TL.page(-1)">‹ Prev</button>
+            <span id="tl-range" class="muted">…</span>
+            <button class="secondary" onclick="TL.page(1)">Next ›</button>
+        </div>
+        <div id="tl-full"></div>
+    </div>
+
+    <div id="view-experiments" class="subview" style="display:none;">
+        <h2>Live Experiments — Full Detail</h2>
+        <p class="muted" id="exp-full-meta">Loading…</p>
+        <div id="exp-full"></div>
+        <div style="margin:12px 0;"><button class="secondary" onclick="EXP.showRaw()">Toggle raw manifest JSON</button></div>
+        <pre id="exp-raw" style="display:none;max-height:480px;overflow:auto;"></pre>
+    </div>
+
+    <script>
+        const BUDGET_KEY = 'system_token_budget';
+        let modelReady = false;
+
+        function overlap(a, b) {
+            if (!a || !b) return 0;
+            const as = new Set(a.toLowerCase().split(/\s+/));
+            const bs = new Set(b.toLowerCase().split(/\s+/));
+            let inter = 0;
+            as.forEach(w => { if (bs.has(w)) inter++; });
+            return inter / Math.max(as.size, 1);
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const txt = input.value.trim();
+            if (!txt) return;
+
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_message: txt})
+            });
+            const data = await res.json();
+
+            const retrieved = data.retrieved_context || [];
+            const optA = data.optimized_answer || '';
+            const baseA = data.baseline_answer || '';
+            let answers = '';
+            if (optA && baseA) {
+                const esc = x => x.slice(0, 400).replace(/</g, '&lt;');
+                answers = `<div class="card highlight" style="margin-top:8px;"><b>Optimized (curated memory) answered:</b> ${esc(optA)}</div>
+                    <div class="card" style="margin-top:6px;"><b>Barebones (raw window) answered:</b> ${esc(baseA)}</div>`;
+            }
+            document.getElementById('chat-history').innerHTML +=
+                `<div class="card ${retrieved.length ? 'highlight' : ''}"><b>Bot:</b> ${data.bot_response}${retrieved.length ? '<br><b>Context injected:</b> ' + retrieved.map(f => `<span class="tag ${f.category}">${f.category}</span> ${f.fact}`).join(' · ') : ''}${answers}</div>`;
+            input.value = '';
+
+            renderState(data.active_memories, data.pruned_memories, data.comparison);
+        }
+
+        async function loadModels() {
+            const res = await fetch('/api/models');
+            const data = await res.json();
+            const sel = document.getElementById('model-select');
+            sel.innerHTML = data.models.map(m =>
+                `<option value="${m.name}" ${m.name === data.active ? 'selected' : ''}>${m.name}</option>`).join('');
+            sel.onchange = async () => {
+                await fetch('/api/models/select', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({model: sel.value})
+                });
+                loadModels();
+            };
+            modelReady = true;
+        }
+
+        async function applyBudget() {
+            const budget = parseInt(document.getElementById('budget-input').value, 10) || 4096;
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({max_context_tokens: budget})
+            });
+            const data = await res.json();
+            if (data.comparison) renderComparison(data.comparison);
+        }
+
+        async function loadDemo() {
+            const params = demoParams();
+            setProgressVisible(true);
+            const res = await fetch('/api/demo/scenario', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(params)
+            });
+            const data = await res.json();
+            if (data.detail) {
+                setProgressVisible(false);
+                alert(data.detail);
+                return;
+            }
+            document.getElementById('chat-history').innerHTML =
+                `<div class="card"><b>System:</b> LLM demo started — ${params.turns} turns, ${params.planted_count} planted facts, every turn parsed by llama3.1 (${params.density_pct}% re-mention density, ${params.filler} filler), facts buried among noise.</div>`;
+            startDemoProgressPoll();
+        }
+
+        function demoParams() {
+            document.getElementById('turns-preset').value = document.getElementById('turns-input').value;
+            return {
+                turns: Math.min(500, Math.max(20, parseInt(document.getElementById('turns-input').value, 10) || 150)),
+                density_pct: Math.min(100, Math.max(0, parseFloat(document.getElementById('density-input').value) || 20)),
+                planted_count: Math.min(50, Math.max(1, parseInt(document.getElementById('planted-input').value, 10) || 5)),
+                filler: document.getElementById('filler-select').value
+            };
+        }
+
+        let demoPollTimer = null;
+
+        function setProgressVisible(on) {
+            document.getElementById('demo-progress').hidden = !on;
+        }
+
+        function updateProgress(job) {
+            const done = job.turns_done || 0, total = job.turns_total || 0;
+            const pct = total ? Math.round(done / total * 100) : 0;
+            document.getElementById('demo-progress-bar').style.width = pct + '%';
+            const now = parseInt(job.current_turn || done, 10);
+            document.getElementById('demo-progress-label').innerText =
+                `Extracting turn ${now} of ${total} (${pct}%)` +
+                (job.eta_s != null ? ` · ~${Math.round(job.eta_s / 60)} min ${job.eta_s % 60}s left` : '');
+        }
+
+        async function startDemoProgressPoll() {
+            clearInterval(demoPollTimer);
+            demoPollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/demo/job');
+                    const { job } = await res.json();
+                    if (!job || !job.running) {
+                        clearInterval(demoPollTimer);
+                        demoPollTimer = null;
+                        setProgressVisible(false);
+                        if (job?.cancelled) {
+                            document.getElementById('chat-history').innerHTML +=
+                                '<div class="card"><b>System:</b> LLM demo cancelled mid-run.</div>';
+                        } else if (job?.error) {
+                            alert('Demo failed: ' + job.error);
+                        } else {
+                            const s = await (await fetch('/api/state')).json();
+                            renderState(s.active_memories, s.pruned_memories, s.comparison);
+                            renderTimeline(s.timeline || []);
+                            renderBothSides(s);
+                            document.getElementById('chat-history').innerHTML =
+                                `<div class="card"><b>System:</b> LLM demo complete — ${s.current_turn} turns replayed via real extraction, ${s.ground_truth?.length || 0} planted facts.</div>`;
+                        }
+                    } else {
+                        updateProgress(job);
+                    }
+                } catch (e) { /* server restarting */ }
+            }, 1500);
+        }
+
+        async function cancelDemoJob() {
+            await fetch('/api/demo/job/cancel', {method: 'POST'});
+        }
+
+        async function resetMemory() {
+            clearInterval(demoPollTimer);
+            demoPollTimer = null;
+            setProgressVisible(false);
+            try {
+                await fetch('/api/demo/job/cancel', {method: 'POST'});
+                await new Promise(r => setTimeout(r, 600));
+            } catch (e) {}
+            await fetch('/api/ethics/purge', {method: 'DELETE'});
+            renderState([], [], null);
+            document.getElementById('chat-history').innerHTML =
+                '<div class="card"><b>System:</b> Memory purged. Click "Load Demo" to replay the test, or chat live.</div>';
+            document.getElementById('timeline').innerHTML = '';
+            document.getElementById('barebones-preview').innerHTML =
+                'Load the demo to inspect the raw-turn window and how many planted facts survive in the baseline\'s immediate context.';
+            document.getElementById('both-sides').innerHTML = 'Load a demo to compare what each side remembers vs forgets.';
+            document.getElementById('experiments').innerHTML = '';
+            document.getElementById('exp-meta').innerText = 'Click "Run Experiments (E1–E6)" to evaluate both systems on the currently loaded scenario.';
+        }
+
+        function renderState(active, pruned, comparison) {
+            renderMemories(active, 'active-memories', 'active-count');
+            renderMemories(pruned, 'pruned-memories', 'pruned-count', true);
+            if (comparison) renderComparison(comparison);
+        }
+
+        function renderComparison(c) {
+            if (!c) {
+                document.getElementById('baseline-bar').style.width = '0%';
+                document.getElementById('optimized-bar').style.width = '0%';
+                document.getElementById('baseline-tokens').innerText = '0 / 0 tokens in context';
+                document.getElementById('optimized-tokens').innerText = '0 tokens in curated context';
+                document.getElementById('optimized-mem').innerText = '';
+                document.getElementById('baseline-evicted').innerText = '';
+                document.getElementById('forgot-kept').innerText = '';
+                document.getElementById('planted-stats').innerText = '';
+                drawChart(null, 4096);
+                return;
+            }
+            const budget = c[BUDGET_KEY] || 4096;
+
+            document.getElementById('baseline-bar').style.width = Math.min(100, (c.baseline_context_tokens || 0) / budget * 100) + '%';
+            document.getElementById('baseline-tokens').innerText =
+                `${num(c.baseline_context_tokens)} / ${budget.toLocaleString()} tokens in context — measured live (${c.baseline_turns_in_context} turns, cumulative ${num(c.cumulative_history_tokens)})`;
+            document.getElementById('optimized-bar').style.width = Math.min(100, (c.active_memory_tokens || 0) / budget * 100) + '%';
+            const engines = (c.retrieval_engines || []).join(' / ') || 'lexical';
+            document.getElementById('optimized-tokens').innerText =
+                `${num(c.optimized_context_tokens)} tokens injected this turn — measured live · ${num(c.active_memory_tokens)} total in memory · ${num(c.active_memory_tokens)} / ${budget.toLocaleString()} total context usage · via ${engines}`;
+            let optMem = `${c.active_memory_count} active memories · ${c.pruned_memory_count} deliberately forgotten`;
+            if (c.budget_squeezed) {
+                const ev = c.adaptive_budget_evictions || [];
+                optMem += ` · <span class="bad">⚠ token budget ${num(c.adaptive_budget_cap)}: ${ev.length} evicted (lowest M(t)) — first: "${((ev[0] || {}).fact || '')}"</span>`;
+            }
+            document.getElementById('optimized-mem').innerHTML = optMem;
+
+            const evictions = c.baseline_evicted_turn_ids || [];
+            const preview = c.baseline_memory_preview || {};
+            document.getElementById('baseline-evicted').innerHTML = evictions.length
+                ? `Barebones window already dropped ${evictions.length} earliest turns (#${evictions[0]}–#${evictions[evictions.length - 1]}). Any fact they held is gone from the model's context.`
+                : `No turns evicted yet — keep typing or load the demo.`;
+
+            if (preview.planted_facts_total) {
+                const iv = preview.planted_facts_in_window_vs_evicted || {in_window: 0, evicted: 0};
+                const kept = c.facts_barebones_forgot_you_still_keep || [];
+                document.getElementById('planted-stats').innerHTML =
+                    `<b>Planted facts by context:</b> ${iv.in_window} in window · <span class="bad">${iv.evicted} evicted (lost by baseline)</span>` +
+                    (iv.evicted ? ` · <span class="good">you still remember ${kept.length} of ${iv.evicted}</span>`
+                                : (c.forgot_by_both || 0) > 0 ? ` · <span class="bad">adaptive also lost ${c.forgot_by_both}</span>` : '');
+            }
+
+            const kept = c.facts_barebones_forgot_you_still_keep || [];
+            const extraOther = c.kept_extra_other || [];
+            const lostBoth = c.forgot_by_both || 0;
+            let keptHtml = '';
+            if (kept.length) {
+                keptHtml = '<b class="kept">Barebones forgot these planted facts, but you still remember:</b><br>' +
+                    kept.map(f => `• <span class="tag ${f.category}">${f.category}</span> "${f.fact}" (turn ${f.source_turn}, M(t)=${f.current_importance})`).join('<br>');
+            }
+            if (extraOther.length) {
+                keptHtml += `<div class="muted" style="margin-top:6px;">…plus ${extraOther.length} other (non-planted) ${extraOther.length === 1 ? 'memory' : 'memories'} from evicted turns also kept.</div>`;
+            }
+            if (lostBoth > 0) {
+                keptHtml += `<div class="bad" style="margin-top:6px;">Heads-up: adaptive also lost ${lostBoth} planted ${lostBoth === 1 ? 'fact' : 'facts'} from evicted turns.</div>`;
+            }
+            document.getElementById('forgot-kept').innerHTML = keptHtml;
+
+            renderBarebonesWindow(preview);
+            renderVram(c.vram);
+            drawChart(c.token_history, budget);
+        }
+
+        function renderBarebonesWindow(preview) {
+            const cont = document.getElementById('barebones-preview');
+            if (!preview || !preview.included_turns) { cont.innerHTML = 'Load the demo to inspect the raw-turn window.'; return; }
+            const snippet = (t) => t.excerpt.replace(/\.\.\..*/, '…');
+            cont.innerHTML =
+                `<div class="legend" style="margin-top:0;">` +
+                `<span><span class="sw green"></span>Window holds the last ${preview.included_turns.length} turns — the model sees only these as raw transcript.</span>` +
+                `<span><span class="sw red"></span>${(preview.evicted_turn_ids || []).length} earlier turns evicted (~${(preview.evicted_tokens || 0).toLocaleString()} tokens dropped).</span>` +
+                `</div>` +
+                `<div style="max-height:220px;overflow-y:auto;">` +
+                preview.included_turns.slice(-8).reverse().map(t =>
+                    `<div class="card" style="padding:6px 10px;"><span class="tl-entry"><span class="turn">#${t.turn_id}</span> · ${t.tokens.toLocaleString()} tokens</span> <span class="muted">"${snippet(t)}"</span></div>`
+                ).join('') +
+                `</div>`;
+        }
+
+        function renderBothSides(s) {
+            const cont = document.getElementById('both-sides');
+            const c = s.comparison || {};
+            const summary = c.baseline_memory_summary || {};
+            const active = s.active_memories || [];
+            const pruned = s.pruned_memories || [];
+            const gt = s.ground_truth || [];
+            if (!s.current_turn) {
+                cont.innerHTML = 'Load a demo to compare what each side remembers vs forgets.';
+                return;
+            }
+            const keep = [];
+            const baselineLostIds = new Set((summary.lost || []).map(f => f.source_turn));
+            const baselineKeptIds = new Set((summary.remembered || []).map(f => f.source_turn));
+            const proposedActs = active.filter(m => m.source_turn_id != null);
+            const proposedPruned = pruned.filter(m => m.source_turn_id != null);
+
+            const memLine = (f, extra = '') =>
+                `<div class="mem-item"><span class="tag ${f.category || 'transient'}">${f.category || ''}</span> "${f.fact}" <span class="muted">· turn ${f.source_turn ?? f.source_turn_id}${extra}</span></div>`;
+
+            const proposedR = proposedActs.slice(0, 30).map(f => memLine(f, ` · M(t)=${((f.current_importance ?? f.base_score) || 0).toFixed(3)}`)).join('') ||
+                '<div class="mem-item muted">none</div>';
+            const proposedL = proposedPruned.slice(-15).reverse().map(f => memLine(f, ' <span class="lost">pruned</span>')).join('') ||
+                '<div class="mem-item muted">nothing deliberately forgotten</div>';
+            const baselineR = (summary.remembered || []).slice(0, 30).map(f => memLine(f)).join('') ||
+                '<div class="mem-item muted">none</div>';
+            const baselineL = (summary.lost || []).slice(-15).reverse().map(f => memLine(f, ' <span class="lost">lost at eviction</span>')).join('') ||
+                '<div class="mem-item muted">nothing lost yet</div>';
+
+            let head2head = '';
+            if (gt.length) {
+                const shown = gt.slice(0, 30);
+                const rows = shown.map(g => {
+                    const p = proposedActs.some(m => m.source_turn_id === g.source_turn || overlap(g.fact || '', m.fact || '') >= 0.7);
+                    const b = baselineKeptIds.has(g.source_turn) ||
+                              (summary.remembered || []).some(f => overlap(g.fact || '', f.fact || '') >= 0.7);
+                    return `<tr><td><span class="tag ${g.category}">${g.category}</span> "${g.fact}" <span class="muted">(turn ${g.source_turn})</span></td>
+                        <td class="${p ? 'good' : 'bad'}">${p ? '✔ remembers' : '✘ forgot'}</td>
+                        <td class="${b ? 'good' : 'bad'}">${b ? '✔ remembers' : '✘ forgot'}</td></tr>`;
+                }).join('');
+                head2head = `
+                    <h3>Planted-fact retention — head to head (${shown.length} shown of ${gt.length})</h3>
+                    <table><thead><tr><th>Planted fact</th><th>Proposed (adaptive)</th><th>Barebones (raw window)</th></tr></thead>
+                    <tbody>${rows}</tbody></table>`;
+            }
+
+            cont.innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="card"><b>Proposed (adaptive memory)</b>
+                        <h4>Remembers <span class="good">(${proposedActs.length} active)</span></h4>
+                        <div class="mem-list">${proposedR}</div>
+                        <h4 class="pruned">Forgotten <span class="pruned">(${proposedPruned.length} pruned)</span></h4>
+                        <div class="mem-list">${proposedL}</div>
+                    </div>
+                    <div class="card"><b>Barebones (raw transcript window)</b>
+                        <h4>Remembers <span class="good">(${(summary.remembered || []).length} facts in window)</span></h4>
+                        <div class="mem-list">${baselineR}</div>
+                        <h4 class="pruned">Forgotten <span class="pruned">(${(summary.lost || []).length} facts lost at eviction)</span></h4>
+                        <div class="mem-list">${baselineL}</div>
+                    </div>
+                </div>
+                ${head2head}`;
+        }
+
+        function renderVram(v) {
+            const chip = document.getElementById('vram-chip');
+            if (!v) return;
+            const s = v.sampled || {};
+            const used = s.used_mib != null ? `${s.used_mib} / ${s.total_mib} MiB` : 'n/a';
+            const delta = v.kv_delta_mib != null ? `KV Δ −${v.kv_delta_mib.toFixed(1)} MiB (est.)` : '';
+            chip.innerHTML = `GPU: <b>${used}</b> &nbsp;|&nbsp; ${delta} &nbsp;|&nbsp; ${v.active_model}`;
+        }
+
+        function renderTimeline(timeline) {
+            const cont = document.getElementById('timeline');
+            if (!timeline || !timeline.length) { cont.innerHTML = '<span class="muted">No turns yet.</span>'; return; }
+            const esc = x => (x || '').replace(/</g, '&lt;').slice(0, 220);
+            cont.innerHTML = timeline.slice().reverse().slice(0, 12).map(e => {
+                const saved = (e.optimized_retrieved_this_turn || []).length;
+                const lost = e.baseline_newly_lost_facts || [];
+                const ans = (e.baseline_answer || e.optimized_answer) ?
+                    `<div style="margin-top:4px;"><span class="good">opt:</span> ${esc(e.optimized_answer)}<br><span class="bb-ev">base:</span> ${esc(e.baseline_answer)}</div>` : '';
+                return `<div class="tl-entry">
+                    <span class="turn">turn ${e.turn_id}</span> —
+                    <span class="muted">"${(e.user_message || '').substring(0, 60)}"</span><br>
+                    <span class="muted">optimized: ${saved} fact(s) injected (${e.optimized_injected_tokens ?? 0} tok)${e.optimized_budget_squeezed ? ' <span class="bad">⚠ squeezed</span>' : ''} · ${(e.optimized_pruned_this_turn || []).length} pruned this turn · barebones: ${e.baseline_window_tokens ?? 0}-tok window${(e.baseline_facts_seen || []).length ? `, saw ${e.baseline_facts_seen.length} fact(s)` : ''}</span>
+                    ${lost.length ? `<br><span class="lost">☓ baseline lost this fact: ${lost.map(f => `"${f.fact}"`).join('; ')}</span>` : ''}${ans}
+                </div>`;
+            }).join('');
+        }
+
+        async function runExperiments() {
+            const btn = document.querySelector('#experiments-panel button');
+            if (btn) { btn.disabled = true; btn.innerText = 'Running…'; }
+            const res = await fetch('/api/experiments/run', {method: 'POST'});
+            const data = await res.json();
+            if (btn) { btn.disabled = false; btn.innerText = 'Run Experiments (E1–E6)'; }
+            if (!data) return;
+            if (data.detail) { alert(data.detail); return; }
+            renderExperiments(data);
+        }
+
+        function num(x, digits) {
+            if (x === null || x === undefined || Number.isNaN(x)) return '—';
+            return (digits != null ? Number(x).toFixed(digits) : Number(x).toLocaleString());
+        }
+
+        function renderExperiments(d) {
+            document.getElementById('exp-meta').innerHTML =
+                `Model under test: <b>${d.model_under_test}</b> · token budget <b>${d.max_context_tokens}</b> · evaluated live on the loaded scenario.` +
+                ` <span class="muted">(E1 = Wilcoxon signed-rank on per-turn tokens; E2 = recall + forgetting precision; E3 = pipeline latency; E4 = needle-in-haystack by distance; E5 = ablations vs full system; E6 = statistical power of E1.)</span>`;
+            const s = (on) => `<span class="${on ? 'good' : 'bad'}">${on ? '✔' : '✘'}</span>`;
+            const cont = document.getElementById('experiments');
+            const e1 = d.E1_token_efficiency, e2 = d.E2_memory_accuracy, e3 = d.E3_latency;
+            const e4 = d.E4_needle_in_haystack, e5 = d.E5_ablations, e6 = d.E6_power_check;
+            cont.innerHTML = '';
+
+            const table = (title, headers, rows) => {
+                cont.innerHTML += `<h3>${title}</h3><table><thead><tr>${
+                    headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
+                    rows.map(r => `<tr>${
+                        r.map(c => `<td class="${/^[0-9.\-–—]+$/.test(c) ? 'num' : ''}">${c}</td>`).join('')}</tr>`)
+                    .join('')}</tbody></table>`;
+            };
+
+            table('E1 — Token Efficiency (Wilcoxon signed-rank, per turn)',
+                ['Metric', 'Proposed', 'Baseline', 'Significance'],
+                [[
+                    `Injected context tokens (mean of ${e1.n})`,
+                    num(e1.proposed_mean_tokens, 1),
+                    num(e1.baseline_mean_tokens, 1),
+                    (e1.significant ? s(true) : e1.significant === false ? s(false) : '—') +
+                    (e1.p_value != null && !Number.isNaN(e1.p_value) ? ` p=${e1.p_value < 0.001 ? e1.p_value.toExponential(2) : num(e1.p_value, 3)}` : '')
+                ]]);
+
+            table('E2 — Memory Accuracy vs Ground Truth' + (e2.baseline_recall_real ? ' (real LLM replay)' : ' (estimate)'),
+                ['Metric', 'Proposed', 'Baseline'],
+                [
+                    ['Positive recall (found facts)', num(e2.proposed_positive_recall, 3), num(e2.baseline_positive_recall, 3)],
+                    ['Forgetting precision (transient correctly dropped)', num(e2.proposed_forgetting_precision, 3), num(e2.baseline_forgetting_precision, 3)],
+                ]);
+
+            table('E3 — Pipeline Latency',
+                ['Stage', 'Avg ms'],
+                [['Extraction', num(e3.extraction_ms, 2)],
+                 ['Window replay (real LLM)', num(e3.window_replay_ms, 2)],
+                 ['Answer (real LLM)', num(e3.answer_ms, 2)],
+                 ['Scoring', num(e3.scoring_ms, 3)],
+                 ['Compression', num(e3.compression_ms, 3)],
+                 ['Decay', num(e3.decay_ms, 3)],
+                 ['Budget evict', num(e3.budget_evict_ms, 3)],
+                 ['Retrieval', num(e3.retrieval_ms, 3)],
+                 ['Embedding', num(e3.embedding_ms, 3)]]);
+
+            const e4Rows = (e4.distances || []).map((d, i) =>
+                [`≥ ${d} turns back`, num(e4.proposed_accuracy[i], 3), num(e4.baseline_accuracy[i], 3)]);
+            table('E4 — Needle-in-Haystack by Recency Distance (recall)',
+                ['Distance', 'Proposed', 'Baseline'], e4Rows);
+
+            const e5Rows = Object.values(e5 || {}).map(a => [
+                a.ablation, num(a.accuracy, 3), num(a.token_overhead_vs_full, 2) + '×', a.pruned_count]);
+            table('E5 — Ablations (replay of same scenario)',
+                ['Component', 'Accuracy', 'Token overhead vs full', 'Pruned'],
+                e5Rows);
+
+            table('E6 — Statistical Power (of E1 comparison)',
+                ['Metric', 'Value'],
+                [['Observed Cohen\'s d', num(e6.observed_cohens_d, 3)],
+                 ['Required n per group (power=0.80, α=0.05)', num(e6.required_n_per_group)],
+                 ['Actual n (turns evaluated)', num(e6.n_actual)]]);
+        }
+
+        function renderMemories(list, elementId, countId, isPruned) {
+            if (!document.getElementById(countId)) return;
+            document.getElementById(countId).innerText = list.length;
+            const container = document.getElementById(elementId);
+            container.innerHTML = list.map(m => `
+                <div class="card">
+                    <span class="tag ${m.category}">${m.category}</span>
+                    <p style="margin:8px 0;">${m.fact}</p>
+                    <small style="color:#94a3b8;">
+                        Turn: ${m.source_turn_id} |
+                        ${isPruned ? (m.prune_reason || 'pruned') : 'M(t): ' + (m.current_importance !== undefined ? m.current_importance : m.base_score).toFixed(3)}
+                    </small>
+                </div>
+            `).join('');
+        }
+
+        function drawChart(th, budget) {
+            const svg = document.getElementById('chart');
+            if (!th || th.length === 0) {
+                svg.innerHTML = '<text x="20" y="100">Load the demo to see context growth.</text>';
+                return;
+            }
+            if (th.length > 300) {
+                const step = (th.length - 1) / 299;
+                th = th.map((_, i) => th[Math.min(th.length - 1, Math.round(i * step))]);
+            }
+            const W = 600, H = 200, pad = 30;
+            const maxY = Math.max(budget, ...th.map(p => p.raw_cumulative)) * 1.05;
+            const n = th.length;
+            const x = i => pad + (W - 2 * pad) * i / (n - 1 || 1);
+            const y = v => H - pad - (H - 2 * pad) * Math.min(v, maxY) / maxY;
+
+            const rawPts = th.map((p, i) => `${x(i).toFixed(1)},${y(Math.min(p.raw_cumulative, budget)).toFixed(1)}`).join(' ');
+            const actPts = th.map((p, i) => `${x(i).toFixed(1)},${y(p.active_tokens).toFixed(1)}`).join(' ');
+
+            svg.innerHTML =
+                `<line x1="${pad}" y1="${y(budget)}" x2="${W - pad}" y2="${y(budget)}" stroke="#f87171" stroke-width="1" stroke-dasharray="4,4"/>` +
+                `<text x="${W - pad}" y="${y(budget) - 4}" text-anchor="end">token budget ${budget}</text>` +
+                `<polyline points="${rawPts}" fill="none" stroke="#ef4444" stroke-width="2"/>` +
+                `<polyline points="${actPts}" fill="none" stroke="#4ade80" stroke-width="2"/>` +
+                `<text x="${pad}" y="${H - 8}">turn 1</text>` +
+                `<text x="${W - pad}" y="${H - 8}" text-anchor="end">turn ${n}</text>`;
+        }
+
+        async function poll() {
+            try {
+                const [stateRes, tlRes] = await Promise.all([
+                    fetch('/api/state'), fetch('/api/timeline')
+                ]);
+                const s = await stateRes.json();
+                const tl = await tlRes.json();
+                renderState(s.active_memories, s.pruned_memories, s.comparison);
+                renderTimeline(tl.timeline);
+                renderBothSides(s);
+                if (currentPage() === 'memory') { MEM.load(); }
+                if (currentPage() === 'barebones') { BB.load(); }
+                if (currentPage() === 'experiments') { EXP.load(); }
+                if (currentPage() === 'timeline') { TL.loadCurrent(); }
+            } catch (e) { /* server restarting */ }
+        }
+
+        const VIEWS = ['dashboard', 'barebones', 'memory', 'timeline', 'experiments'];
+        function currentPage() {
+            const h = (location.hash || '#/').replace(/^#\//, '').trim() || 'dashboard';
+            return VIEWS.includes(h) ? h : 'dashboard';
+        }
+        function showPage(name) {
+            VIEWS.forEach(v => {
+                document.getElementById('view-' + v).style.display = v === name ? '' : 'none';
+            });
+            document.querySelectorAll('.subnav a.sn').forEach(a =>
+                a.classList.toggle('active', (a.getAttribute('href') === '#/' && name === 'dashboard') ||
+                                            a.getAttribute('href') === '#/' + name));
+            if (name === 'barebones' && !window.__bbLoaded) { BB.load(); window.__bbLoaded = true; }
+            if (name === 'memory') { MEM.load(); }
+            if (name === 'experiments') { EXP.load(); }
+            if (name === 'timeline') { TL.load(); }
+        }
+        window.addEventListener('hashchange', () => showPage(currentPage()));
+
+        const BB = { evictShown: 200, last: null,
+            async load() {
+                try {
+                    const res = await fetch('/api/comparison/full');
+                    if (!res.ok) return;
+                    const c = await res.json();
+                    BB.last = c;
+                    const incl = c.baseline_memory_preview.included_turns || [];
+                    const evict = c.baseline_evicted_turn_ids || [];
+                    const p = c.baseline_memory_preview || {};
+                    document.getElementById('bb-full-meta').innerHTML =
+                        `<b>${incl.length}</b> turns in window (${(c.baseline_context_tokens ?? 0).toLocaleString()} of ${(c.system_token_budget ?? 4096).toLocaleString()} tokens) · <b class="bb-ev">${evict.length}</b> earlier turns evicted (~${(p.evicted_tokens || 0).toLocaleString()} tokens dropped)`;
+                    const rows = incl.map((t, i) =>
+                        `<div class="bb-turn"><span class="bb-idx">#${t.turn_id} · ${t.tokens.toLocaleString()} tok</span>
+                            <span class="muted">"${(t.excerpt || '').replace(/\.\.\..*/, '…').replace(/</g, '&lt;')}"</span>
+                            ${i === incl.length - 1 ? '<span class="good" style="margin-left:auto;">(latest)</span>' : ''}</div>`).join('');
+                    const evRows = evict.slice(0, BB.evictShown).map(t =>
+                        `<div class="bb-turn old"><span class="bb-idx">#${t} · evicted</span><span class="bb-ev">outside the model's context — any fact it held is gone for the baseline.</span></div>`).join('');
+                    document.getElementById('bb-full').innerHTML =
+                        `<h3>Window (what the model actually receives)</h3>${rows || '<div class="muted">No turns yet.</div>'}` +
+                        (evict.length ? `<h3 class="pruned">Evicted turns (${evict.length}) ${evict.length > BB.evictShown ? '— showing first ' + BB.evictShown : ''}</h3>${evRows}` : '');
+                } catch (e) {}
+            },
+            loadMoreEvicted() { BB.evictShown += 200; BB.load(); }
+        };
+
+        const MEM = { shown: 100, last: null,
+            async load() {
+                try {
+                    const [stateRes, fullRes] = await Promise.all([fetch('/api/state'), fetch('/api/comparison/full')]);
+                    const st = await stateRes.json();
+                    const c = await fullRes.json();
+                    MEM.last = { st, c };
+                    const gt = st.ground_truth || [];
+                    const summary = c.baseline_memory_summary || {};
+                    document.getElementById('mem-full-meta').innerHTML =
+                        `<b>${st.active_memories.length}</b> active · <b>${st.pruned_memories.length}</b> pruned · ${gt.length} planted facts · baseline: ${(summary.remembered || []).length} in window, ${(summary.lost || []).length} lost`;
+                    const memItem = (f, extra) =>
+                        `<div class="mem-item"><span class="tag ${f.category || 'transient'}">${f.category || ''}</span> "${f.fact}" <span class="muted">· turn ${f.source_turn ?? f.source_turn_id}${extra || ''}</span></div>`;
+                    const sect = (title, list, n, cls) => {
+                        const slice = (list || []).slice(0, n);
+                        return `<h3 class="${cls || ''}">${title} (${(list || []).length})${(list || []).length > n ? ' — showing ' + n : ''}</h3>${slice.map(f => memItem(f, f.prune_reason ? ' <span class="lost">' + f.prune_reason + '</span>' : '')).join('') || '<div class="muted">none</div>'}`;
+                    };
+                    let h2h = '';
+                    if (gt.length) {
+                        const rows = gt.map(g => {
+                            const p = st.active_memories.some(m => m.source_turn_id === g.source_turn || overlap(g.fact || '', m.fact || '') >= 0.7);
+                            const b = (summary.remembered || []).some(f => f.source_turn === g.source_turn || overlap(g.fact || '', f.fact || '') >= 0.7);
+                            return `<tr><td><span class="tag ${g.category}">${g.category}</span> "${g.fact}" <span class="muted">(turn ${g.source_turn})</span></td>
+                                <td class="${p ? 'good' : 'bad'}">${p ? '✔' : '✘'}</td><td class="${b ? 'good' : 'bad'}">${b ? '✔' : '✘'}</td></tr>`;
+                        }).join('');
+                        h2h = `<h3>Planted-fact retention — head to head (all ${gt.length})</h3>
+                            <table><thead><tr><th>Planted fact</th><th>Proposed</th><th>Barebones</th></tr></thead><tbody>${rows}</tbody></table>`;
+                    }
+                    document.getElementById('mem-full').innerHTML =
+                        `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                            <div class="card"><b>Proposed (adaptive)</b>${sect('Active', st.active_memories, MEM.shown)}${sect('Pruned', st.pruned_memories, MEM.shown, 'pruned')}</div>
+                            <div class="card"><b>Barebones (raw window)</b>${sect('In window', summary.remembered, MEM.shown)}${sect('Lost at eviction', summary.lost, MEM.shown, 'pruned')}</div>
+                        </div>${h2h}`;
+                    document.querySelector('#view-memory button').innerText = MEM.shown >= Math.max(st.active_memories.length, st.pruned_memories.length, (summary.lost || []).length, (summary.remembered || []).length)
+                        ? 'Load more (+100)' : `Showing ${MEM.shown} — load more (+100)`;
+                } catch (e) {}
+            },
+            loadMore() { MEM.shown += 100; MEM.load(); }
+        };
+
+        const TL = { offset: 0, limit: 50, total: 0,
+            esc: x => (x || '').replace(/</g, '&lt;'),
+            async load() { TL.offset = Math.max(0, Math.min(TL.offset, Math.max(0, TL.total - TL.limit || 0))); TL.loadCurrent(); },
+            async loadCurrent() {
+                try {
+                    const res = await fetch(`/api/timeline/full?offset=${TL.offset}&limit=${TL.limit}`);
+                    const d = await res.json();
+                    TL.total = d.total;
+                    document.getElementById('tl-range').innerText = `turns ${TL.total ? d.offset + 1 : 0}–${Math.min(d.total, d.offset + d.limit)} of ${d.total}`;
+                    document.getElementById('tl-full').innerHTML = (d.entries || []).slice().reverse().map(e => {
+                        const saved = (e.optimized_retrieved_this_turn || []).length;
+                        const ans = (e.baseline_answer || e.optimized_answer) ?
+                            `<div style="margin-top:4px;"><span class="good">opt:</span> ${TL.esc(e.optimized_answer)}<br><span class="bb-ev">base:</span> ${TL.esc(e.baseline_answer)}</div>` : '';
+                        return `<div class="tl-entry">
+                            <span class="turn">turn ${e.turn_id}</span> — <span class="muted">"${TL.esc((e.user_message || '').substring(0, 80))}"</span><br>
+                            <span class="muted">opt: ${saved} fact(s) · ${e.optimized_injected_tokens ?? 0} tok injected · ${(e.optimized_pruned_this_turn || []).length} pruned · base window ${e.baseline_window_tokens ?? 0} tok${(e.baseline_facts_seen || []).length ? ' · saw ' + e.baseline_facts_seen.length + ' fact(s)' : ''}</span>
+                            ${((e.baseline_newly_lost_facts || []).length ? '<br><span class="lost">☓ baseline lost: ' + e.baseline_newly_lost_facts.map(f => '"' + f.fact + '"').join('; ') + '</span>' : '')}${ans}
+                        </div>`;
+                    }).join('') || '<div class="muted">No turns yet.</div>';
+                } catch (e) {}
+            },
+            page(d) { TL.offset = Math.max(0, Math.min(Math.max(0, TL.total - TL.limit), TL.offset + d * TL.limit)); TL.loadCurrent(); }
+        };
+
+        const EXP = { last: null,
+            async load() {
+                try {
+                    const res = await fetch('/api/experiments/latest');
+                    const d = await res.json();
+                    if (d && d.detail && !d.E1_token_efficiency) {
+                        document.getElementById('exp-full-meta').innerText = 'No experiments run yet — run them from the dashboard.';
+                        document.getElementById('exp-full').innerHTML = '';
+                        return;
+                    }
+                    EXP.last = d;
+                    document.getElementById('exp-full-meta').innerHTML =
+                        `Model: <b>${d.model_under_test}</b> · budget <b>${d.max_context_tokens}</b>${d.e3 ? '' : ''}`;
+                    document.getElementById('exp-full').innerHTML = '';
+                    renderExperimentsInto(document.getElementById('exp-full'), d);
+                } catch (e) {}
+            },
+            showRaw() {
+                const pre = document.getElementById('exp-raw');
+                pre.style.display = pre.style.display === 'none' ? '' : 'none';
+                if (pre.style.display !== 'none' && EXP.last) pre.innerText = JSON.stringify(EXP.last, null, 2);
+            }
+        };
+
+        // experiments table builder (shared by dashboard + detail page)
+        function renderExperimentsInto(cont, d) {
+            const s = (on) => `<span class="${on ? 'good' : 'bad'}">${on ? '✔' : '✘'}</span>`;
+            const e1 = d.E1_token_efficiency, e2 = d.E2_memory_accuracy, e3 = d.E3_latency;
+            const e4 = d.E4_needle_in_haystack, e5 = d.E5_ablations, e6 = d.E6_power_check;
+            const table = (title, headers, rows, cls) => {
+                cont.innerHTML += `<h3>${title}</h3><table class="${cls || ''}"><thead><tr>${
+                    headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${
+                    rows.map(r => `<tr>${
+                        r.map(c => `<td class="${/^[0-9.\-–—]+$/.test(c) ? 'num' : ''}">${c}</td>`).join('')}</tr>`)
+                        .join('')}</tbody></table>`;
+            };
+            cont.innerHTML += `<h3>E1 — Token Efficiency (Wilcoxon signed-rank, per turn)</h3><table><thead><tr><th>Metric</th><th>Proposed</th><th>Baseline</th><th>Significance</th></tr></thead><tbody><tr>
+                <td>Injected context tokens (mean of ${e1.n})</td>
+                <td class="num">${num(e1.proposed_mean_tokens, 1)}</td><td class="num">${num(e1.baseline_mean_tokens, 1)}</td>
+                <td>${(e1.significant ? s(true) : e1.significant === false ? s(false) : '—') + (e1.p_value != null && !Number.isNaN(e1.p_value) ? ` p=${e1.p_value < 0.001 ? e1.p_value.toExponential(2) : num(e1.p_value, 3)}` : '')}</td></tr></tbody></table>`;
+            if (e1.per_turn && e1.per_turn.length) {
+                const per = e1.per_turn.slice().reverse();
+                cont.innerHTML += `<div class="muted" style="font-size:0.78rem;">Per-turn (latest ${Math.min(50, per.length)}): ${per.slice(0, 50).map(p => `#${p.turn} ${p.proposed}/${p.baseline}`).join(' · ')}</div>`;
+            }
+            table('E2 — Memory Accuracy vs Ground Truth' + (e2.baseline_recall_real ? ' (real LLM replay)' : ''),
+                ['Metric', 'Proposed', 'Baseline'],
+                [['Positive recall (found facts)', num(e2.proposed_positive_recall, 3), num(e2.baseline_positive_recall, 3)],
+                 ['Forgetting precision', num(e2.proposed_forgetting_precision, 3), num(e2.baseline_forgetting_precision, 3)]]);
+            table('E3 — Pipeline Latency', ['Stage', 'Avg ms'],
+                [['Extraction', num(e3.extraction_ms, 2)], ['Window replay (real LLM)', num(e3.window_replay_ms, 2)],
+                 ['Answer (real LLM)', num(e3.answer_ms, 2)], ['Scoring', num(e3.scoring_ms, 3)],
+                 ['Compression', num(e3.compression_ms, 3)], ['Decay', num(e3.decay_ms, 3)], ['Retrieval', num(e3.retrieval_ms, 3)]]);
+            const e4Rows = (e4.distances || []).map((dd, i) =>
+                [`≥ ${dd} turns back`, num(e4.proposed_accuracy[i], 3), num(e4.baseline_accuracy[i], 3)]);
+            table('E4 — Needle-in-Haystack by Recency Distance (recall)' + (e4.baseline_real ? ' — real' : ' (estimate)'),
+                ['Distance', 'Proposed', 'Baseline'], e4Rows);
+            const e5Rows = Object.values(e5 || {}).map(a => [a.ablation, num(a.accuracy, 3), num(a.token_overhead_vs_full, 2) + '×', a.pruned_count]);
+            table('E5 — Ablations (replay of same scenario)', ['Component', 'Accuracy', 'Token overhead vs full', 'Pruned'], e5Rows);
+            table('E6 — Statistical Power (of E1 comparison)', ['Metric', 'Value'],
+                [["Observed Cohen's d", num(e6.observed_cohens_d, 3)],
+                 ['Required n per group (power=0.80, α=0.05)', num(e6.required_n_per_group)], ['Actual n (turns)', num(e6.n_actual)]]);
+        }
+        document.getElementById('turns-preset').onchange = () => {
+            document.getElementById('turns-input').value = document.getElementById('turns-preset').value;
+        };
+
+        loadModels();
+        poll();
+        setInterval(poll, 2000);
+        showPage(currentPage());
+    </script>
+</body>
+</html>
